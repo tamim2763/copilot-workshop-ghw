@@ -178,17 +178,41 @@
 				gap: 0.35rem;
 				color: var(--neon-green);
 				text-shadow: 0 0 6px var(--label-shadow);
+			}
+
+			.player-label {
 				opacity: 0;
 				transform: translateY(10px);
 				animation: float-in 0.65s ease forwards;
 			}
 
-			form label:nth-of-type(1) {
+			form .player-label:nth-of-type(1) {
 				animation-delay: 0.08s;
 			}
 
-			form label:nth-of-type(2) {
+			form .player-label:nth-of-type(2) {
 				animation-delay: 0.16s;
+			}
+
+			.powerup-option {
+				display: flex;
+				align-items: center;
+				gap: 0.55rem;
+				padding: 0.2rem 0.1rem;
+			}
+
+			.powerup-option input[type='checkbox'] {
+				width: 1rem;
+				height: 1rem;
+				accent-color: var(--neon-green);
+				margin: 0;
+			}
+
+			.powerup-option label {
+				display: inline;
+				color: var(--text-dim);
+				text-shadow: none;
+				margin: 0;
 			}
 
 			input {
@@ -554,15 +578,23 @@
 
 			<section class="panel">
 				<form id="battle-form">
-					<label for="player1">
+					<label for="player1" class="player-label">
 						Player 1
 						<input id="player1" name="player1" type="text" required autocomplete="off" />
 					</label>
+					<div class="powerup-option">
+						<input id="player1-powerup" name="player1-powerup" type="checkbox" />
+						<label for="player1-powerup">Player 1 Power-Up (+25%)</label>
+					</div>
 
-					<label for="player2">
+					<label for="player2" class="player-label">
 						Player 2
 						<input id="player2" name="player2" type="text" required autocomplete="off" />
 					</label>
+					<div class="powerup-option">
+						<input id="player2-powerup" name="player2-powerup" type="checkbox" />
+						<label for="player2-powerup">Player 2 Power-Up (+25%)</label>
+					</div>
 
 					<button id="battle-button" type="submit">Battle</button>
 				</form>
@@ -620,6 +652,8 @@
 			const themeToggleButton = document.querySelector<HTMLButtonElement>('#theme-toggle')!;
 			const player1Input = document.querySelector<HTMLInputElement>('#player1')!;
 			const player2Input = document.querySelector<HTMLInputElement>('#player2')!;
+			const player1PowerUpInput = document.querySelector<HTMLInputElement>('#player1-powerup')!;
+			const player2PowerUpInput = document.querySelector<HTMLInputElement>('#player2-powerup')!;
 			const battleButton = document.querySelector<HTMLButtonElement>('#battle-button')!;
 			const statusEl = document.querySelector<HTMLParagraphElement>('#status')!;
 			const battleBoardEl = document.querySelector<HTMLDivElement>('#battle-board')!;
@@ -632,6 +666,7 @@
 			const githubUsernamePattern = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i;
 			const defaultTheme = 'default';
 			const altTheme = 'blaze';
+			const POWER_UP_MULTIPLIER = 1.25;
 
 			const setTheme = (theme: string) => {
 				const isAltTheme = theme === altTheme;
@@ -728,12 +763,23 @@
 			const renderPlayer = (
 				username: string,
 				data: ContributionResponse,
+				powerUpActive: boolean,
+				effectiveTotal: number,
 				metaEl: HTMLParagraphElement,
 				gridEl: HTMLDivElement,
 			) => {
-				metaEl.innerHTML = `<strong>${username}</strong><span>Total: ${data.total_contributions}</span><span>Range: ${data.from} to ${data.to}</span>`;
+				const powerUpLabel = powerUpActive
+					? `<span>Power-Up Active x${POWER_UP_MULTIPLIER.toFixed(2)}: ${effectiveTotal}</span>`
+					: '<span>Power-Up: Off</span>';
+				const totalLabel = powerUpActive
+					? `<span>Base Total: ${data.total_contributions}</span>`
+					: `<span>Total: ${effectiveTotal}</span>`;
+				metaEl.innerHTML = `<strong>${username}</strong>${totalLabel}${powerUpLabel}<span>Range: ${data.from} to ${data.to}</span>`;
 				renderContributionGrid(gridEl, data);
 			};
+
+			const getEffectiveTotal = (baseTotal: number, powerUpActive: boolean): number =>
+				powerUpActive ? Math.round(baseTotal * POWER_UP_MULTIPLIER) : baseTotal;
 
 			const fetchContributions = async (username: string): Promise<ContributionResponse> => {
 				const response = await fetch(`/api/contributions/${encodeURIComponent(username)}`);
@@ -765,6 +811,8 @@
 
 				const player1 = player1Input.value.trim();
 				const player2 = player2Input.value.trim();
+				const player1PowerUpActive = player1PowerUpInput.checked;
+				const player2PowerUpActive = player2PowerUpInput.checked;
 
 				const validationError = validateUsernames(player1, player2);
 				if (validationError) {
@@ -788,15 +836,37 @@
 						fetchContributions(player2),
 					]);
 
-					renderPlayer(player1, player1Data, player1MetaEl, player1GridEl);
-					renderPlayer(player2, player2Data, player2MetaEl, player2GridEl);
+					const player1EffectiveTotal = getEffectiveTotal(
+						player1Data.total_contributions,
+						player1PowerUpActive,
+					);
+					const player2EffectiveTotal = getEffectiveTotal(
+						player2Data.total_contributions,
+						player2PowerUpActive,
+					);
+
+					renderPlayer(
+						player1,
+						player1Data,
+						player1PowerUpActive,
+						player1EffectiveTotal,
+						player1MetaEl,
+						player1GridEl,
+					);
+					renderPlayer(
+						player2,
+						player2Data,
+						player2PowerUpActive,
+						player2EffectiveTotal,
+						player2MetaEl,
+						player2GridEl,
+					);
 					battleBoardEl.classList.add('visible');
 
-					if (player1Data.total_contributions === player2Data.total_contributions) {
+					if (player1EffectiveTotal === player2EffectiveTotal) {
 						winnerEl.textContent = 'Result: It is a tie!';
 					} else {
-						const winnerName =
-							player1Data.total_contributions > player2Data.total_contributions ? player1 : player2;
+						const winnerName = player1EffectiveTotal > player2EffectiveTotal ? player1 : player2;
 						winnerEl.textContent = `Winner: ${winnerName}`;
 					}
 
