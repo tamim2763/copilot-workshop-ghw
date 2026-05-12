@@ -337,6 +337,59 @@
 				margin-top: 0.35rem;
 			}
 
+			.game-over {
+				position: fixed;
+				inset: 0;
+				display: none;
+				align-items: center;
+				justify-content: center;
+				padding: 1.5rem;
+				background: rgba(3, 6, 20, 0.85);
+				backdrop-filter: blur(2px);
+				z-index: 10;
+			}
+
+			.game-over.is-visible {
+				display: flex;
+			}
+
+			.game-over-panel {
+				max-width: 26rem;
+				text-align: center;
+				border: 1px solid var(--vs-border);
+				border-radius: 0.6rem;
+				padding: 1.5rem;
+				background: linear-gradient(140deg, rgba(16, 18, 44, 0.95), rgba(6, 6, 22, 0.95));
+				box-shadow:
+					0 0 18px var(--vs-shadow-1),
+					0 0 24px var(--vs-shadow-2);
+			}
+
+			.game-over-title {
+				margin-bottom: 0.6rem;
+				font-size: 1.05rem;
+				color: var(--neon-green);
+				text-shadow: 0 0 10px var(--title-glow-primary);
+			}
+
+			.game-over-summary {
+				margin-bottom: 1rem;
+				color: var(--text-dim);
+			}
+
+			.game-over-actions {
+				display: grid;
+				gap: 0.6rem;
+				justify-items: center;
+			}
+
+			.game-over-actions button {
+				width: 100%;
+				max-width: 14rem;
+				animation: none;
+				opacity: 1;
+			}
+
 			.theme-controls {
 				margin-bottom: 1rem;
 			}
@@ -695,6 +748,18 @@
 					<button id="clear-history" class="clear-history" type="button">Clear history</button>
 				</div>
 			</section>
+
+			<section id="game-over" class="game-over" aria-hidden="true">
+				<div class="game-over-panel">
+					<p class="game-over-title">Game Over</p>
+					<p id="game-over-summary" class="game-over-summary"></p>
+					<div class="game-over-actions">
+						<button id="rematch" type="button">Rematch</button>
+						<button id="new-battle" type="button">New Battle</button>
+						<button id="close-game-over" type="button">Close</button>
+					</div>
+				</div>
+			</section>
 		</main>
 
 		<script>
@@ -743,6 +808,11 @@
 			const leaderboardEl = document.querySelector<HTMLOListElement>('#leaderboard')!;
 			const historyEl = document.querySelector<HTMLOListElement>('#battle-history')!;
 			const clearHistoryButton = document.querySelector<HTMLButtonElement>('#clear-history')!;
+			const gameOverEl = document.querySelector<HTMLDivElement>('#game-over')!;
+			const gameOverSummaryEl = document.querySelector<HTMLParagraphElement>('#game-over-summary')!;
+			const rematchButton = document.querySelector<HTMLButtonElement>('#rematch')!;
+			const newBattleButton = document.querySelector<HTMLButtonElement>('#new-battle')!;
+			const closeGameOverButton = document.querySelector<HTMLButtonElement>('#close-game-over')!;
 			const githubUsernamePattern = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i;
 			const defaultTheme = 'default';
 			const altTheme = 'blaze';
@@ -961,6 +1031,17 @@
 				clearHistoryButton.disabled = history.length === 0;
 			};
 
+			const showGameOver = (summary: string) => {
+				gameOverSummaryEl.textContent = summary;
+				gameOverEl.classList.add('is-visible');
+				gameOverEl.setAttribute('aria-hidden', 'false');
+			};
+
+			const hideGameOver = () => {
+				gameOverEl.classList.remove('is-visible');
+				gameOverEl.setAttribute('aria-hidden', 'true');
+			};
+
 			const fetchContributions = async (username: string): Promise<ContributionResponse> => {
 				const response = await fetch(`/api/contributions/${encodeURIComponent(username)}`);
 				let payload: unknown = null;
@@ -1068,6 +1149,11 @@
 					history.unshift(record);
 					saveBattleHistory(history);
 					updateHistoryUI(history);
+					showGameOver(
+						winnerName === 'Tie'
+							? `Tie game! Final score ${player1EffectiveTotal} - ${player2EffectiveTotal}.`
+							: `${winnerName} wins! Final score ${player1EffectiveTotal} - ${player2EffectiveTotal}.`,
+					);
 
 					statusEl.textContent = 'Battle complete.';
 					statusEl.classList.remove('is-loading');
@@ -1095,6 +1181,21 @@
 				localStorage.removeItem(HISTORY_STORAGE_KEY);
 				updateHistoryUI([]);
 			});
+			rematchButton.addEventListener('click', () => {
+				hideGameOver();
+				form.requestSubmit();
+			});
+			newBattleButton.addEventListener('click', () => {
+				hideGameOver();
+				player1Input.value = '';
+				player2Input.value = '';
+				player1PowerUpInput.checked = false;
+				player2PowerUpInput.checked = false;
+				statusEl.textContent = '';
+				clearResults();
+				player1Input.focus();
+			});
+			closeGameOverButton.addEventListener('click', hideGameOver);
 			themeToggleButton.addEventListener('click', () => {
 				const nextTheme = document.body.dataset.theme === altTheme ? defaultTheme : altTheme;
 				setTheme(nextTheme);
